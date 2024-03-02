@@ -4,7 +4,7 @@
 
 If you own an application with long build times and you have a client affecting bug, you *may* want to patch the binary to get a fix out quickly.
 
-You probably wouldn't want to do this.
+Tbh, you probably wouldn't want to do this.
 
 ## Tutorial
 
@@ -58,7 +58,7 @@ Source lines (from CU-DIE at .debug_info offset 0x0000000c):
 
 Here we can see which line numbers correspond to which addresses in the binary. `int threshold = 10;` is line 10 in `main.cpp`, and we can see from the dwarf information that line 10 corresponds to address `0x0000136b`.
 
-We can verify that this address corresponds to line 10 by looking at the assembly for this range. I've used the `-A` argument to grep to ask for 2 lines after the match:
+We can verify that this address corresponds to line 10 by looking at the assembly for this range. I've used `grep -A2` to ask for 2 lines after the match:
 
 ```
 peter@chronos$ objdump -d main.tsk | grep -A2 136b
@@ -67,20 +67,26 @@ peter@chronos$ objdump -d main.tsk | grep -A2 136b
     1375:	3b 45 bc             	cmp    -0x44(%rbp),%eax
 ```
 
-Here we can the code at `0x136b` moves 0xa (10 in decimal) into `-0x44(%rbp)` and a later line compares it with `-0x48(%rbp)`. We can see this compare command corresponds to line 11 from the `dwarfdump` information. Line 11 in `main.cpp` compares the user input to the hardcoded value of 10. 
+Here we can see the code at `0x136b` moves 0xa (10 in decimal) into the address `-0x44(%rbp)` and the last line compares it with `-0x48(%rbp)`. We can see this compare command corresponds to line 11 from the `dwarfdump` information by looking up `0x1375`.
 
-We can verify these addresses correspond to the hardcoded 10 and the user input by loading the binary into gdb and printing the values with the `x/wd` command to print as a 32bit int in decimal:
+Another sanity check we can do is to load the binary into gdb and print the values at these addresses as a 32bit int (in decimal) with the `x/wd`. Here we can see the 2 addresses correspond to the user input and the hardcoded value of 10:
 
 ```
+peter@chronos$ gdb main.tsk
+(gdb) b 11
+Breakpoint 1 at 0x1372: file main.cpp, line 11.
+(gdb) r
+Enter a number, any number at all:
+5
 (gdb) x/wd $rbp-0x48
-0x7fffffffda58: 5
+0x7fffffffdcf8:	5
 (gdb) x/wd $rbp-0x44
-0x7fffffffda5c: 10
+0x7fffffffdcfc:	10
 ```
 
 ### Rewriting the binary
 
-Now we know the command stored at this address, we can change it to move a different number into `-0x44(%rbp)`. Let's substitute 10 (0x0a) for 3 (0x03). For this, we'll use the `dd` utility:
+Now we know the command stored at this address, we can edit it to move a different number into `-0x44(%rbp)`. Let's copy all the bytes from `0x136b` to `0x1371` (7 bytes), but substitute 10 (0x0a) for 3 (0x03). Alternatively, we could have replaced a single byte at address `0x136e` with 3. To do the replace, we'll use the `dd` utility:
 
 ```
 peter@chronos$ printf "\xc7\x45\xbc\x03\x00\x00\x00" > hardcode3.bin
@@ -88,22 +94,25 @@ peter@chronos$ dd if=hardcode3.bin of=main.tsk seek=$((0x136b)) obs=1 conv=notru
 0+1 records in
 7+0 records out
 7 bytes copied, 0.000446964 s, 15.7 kB/s
-peter@chronos$ ./main.tsk 
-Enter a number, any number at all:
-5
-Your number is above 3
 ```
 
-Here, we write the new binary to a file and pass that as an argument to `dd`. Important parameters are `seek` (which tells dd to write at a certain address) and `obs` (which is the block size to seek over). Seek will seek over X objects, so if `obs` is greater than 1 you won't be writing to where you wanted.
+Here, we write the new binary to a file and pass that as an argument to `dd`. Important parameters are `seek` (which tells dd to write at a certain address) and `obs` (which is the block size to seek over). Seek will seek over X objects, so if `obs` is greater than 1 you won't be writing to where you wanted. Effectively `seek*obs` is the address you'll write to.
 
-We can also verify with `objdump` that `dd` wrote to the correct place:
+We can now verify with `objdump` that `dd` wrote to the correct place:
 
 ```
 peter@chronos$ objdump -d main.tsk | grep 136b
     136b:	c7 45 bc 03 00 00 00 	movl   $0x3,-0x44(%rbp)
 ```
 
-The line now has `03` rather than `0a`!
+The line now has `03` rather than `0a`! Let's run the patched binary:
+
+```
+peter@chronos$ ./main.tsk 
+Enter a number, any number at all:
+5
+Your number is above 3
+```
 
 -----------------
 
