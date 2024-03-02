@@ -61,7 +61,7 @@ Here we can see which line numbers correspond to which addresses in the binary. 
 We can verify that this address corresponds to line 10 by looking at the assembly for this range. I've used `grep -A2` to ask for 2 lines after the match:
 
 ```
-peter@chronos$ objdump -d main.tsk | grep -A2 136b
+peter@chronos$ objdump --disassemble main.tsk | grep -A2 136b
     136b:	c7 45 bc 0a 00 00 00 	movl   $0xa,-0x44(%rbp)
     1372:	8b 45 b8             	mov    -0x48(%rbp),%eax
     1375:	3b 45 bc             	cmp    -0x44(%rbp),%eax
@@ -73,9 +73,9 @@ Another sanity check we can do is to load the binary into gdb and print the valu
 
 ```
 peter@chronos$ gdb main.tsk
-(gdb) b 11
+(gdb) break 11
 Breakpoint 1 at 0x1372: file main.cpp, line 11.
-(gdb) r
+(gdb) run
 Enter a number, any number at all:
 5
 (gdb) x/wd $rbp-0x48
@@ -101,7 +101,7 @@ Here, we write the new binary to a file and pass that as an argument to `dd`. Im
 We can now verify with `objdump` that `dd` wrote to the correct place:
 
 ```
-peter@chronos$ objdump -d main.tsk | grep 136b
+peter@chronos$ objdump --disassemble main.tsk | grep 136b
     136b:	c7 45 bc 03 00 00 00 	movl   $0x3,-0x44(%rbp)
 ```
 
