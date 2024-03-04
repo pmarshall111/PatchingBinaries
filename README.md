@@ -1,11 +1,5 @@
 # Patching Binaries
 
-## Why would you do this?
-
-If you own an application with long build times and you have a client affecting bug, you *may* want to patch the binary to get a fix out quickly.
-
-Tbh, you probably wouldn't want to do this.
-
 ## Tutorial
 
 The simple application in `main.cpp` asks the user for an input and then prints whether it's above or below a hardcoded value of 10.
